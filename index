@@ -1,0 +1,151 @@
+import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+export default function App() {
+  const [form, setForm] = useState({
+    nombre: "",
+    telefono: "",
+    email: "",
+    descripcion: "",
+    estilo: "minimalista",
+  });
+
+  const [prompt, setPrompt] = useState("");
+  const [imagen, setImagen] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+  };
+
+  const generarPrompt = () => {
+    return `Diseña una tarjeta de visita profesional:\n
+Nombre: ${form.nombre}\nTeléfono: ${form.telefono}\nEmail: ${form.email}\n\nServicios:\n${form.descripcion}\n\nEstilo: ${form.estilo}\n\nDiseño limpio, moderno, fondo blanco, listo para impresión.`;
+  };
+
+  const generarImagen = async () => {
+    setLoading(true);
+    const promptGenerado = generarPrompt();
+    setPrompt(promptGenerado);
+
+    try {
+      const res = await fetch("/api/generar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt: promptGenerado }),
+      });
+
+      const data = await res.json();
+      setImagen(data.url);
+    } catch (error) {
+      console.error(error);
+      alert("Error generando imagen");
+    }
+
+    setLoading(false);
+  };
+
+  return (
+    <div className="p-6 grid gap-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold">Generador de Tarjetas con IA</h1>
+
+      <Card>
+        <CardContent className="p-4 grid gap-4">
+          <input
+            name="nombre"
+            placeholder="Nombre"
+            className="border p-2 rounded"
+            onChange={handleChange}
+          />
+          <input
+            name="telefono"
+            placeholder="Teléfono"
+            className="border p-2 rounded"
+            onChange={handleChange}
+          />
+          <input
+            name="email"
+            placeholder="Email"
+            className="border p-2 rounded"
+            onChange={handleChange}
+          />
+          <textarea
+            name="descripcion"
+            placeholder="Servicios o productos"
+            className="border p-2 rounded"
+            onChange={handleChange}
+          />
+
+          <select
+            name="estilo"
+            className="border p-2 rounded"
+            onChange={handleChange}
+          >
+            <option value="minimalista">Minimalista</option>
+            <option value="moderno">Moderno</option>
+            <option value="elegante">Elegante</option>
+            <option value="creativo">Creativo</option>
+          </select>
+
+          <Button onClick={generarImagen}>
+            {loading ? "Generando..." : "Generar Tarjeta"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {imagen && (
+        <Card>
+          <CardContent className="p-4">
+            <h2 className="font-semibold mb-2">Resultado:</h2>
+            <img src={imagen} alt="Tarjeta generada" className="rounded-2xl shadow" />
+          </CardContent>
+        </Card>
+      )}
+
+      {prompt && (
+        <Card>
+          <CardContent className="p-4">
+            <h2 className="font-semibold mb-2">Prompt usado:</h2>
+            <pre className="whitespace-pre-wrap text-sm">{prompt}</pre>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ================= BACKEND (Next.js API Route) =================
+// Crear archivo: /pages/api/generar.js
+
+export async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).end();
+  }
+
+  const { prompt } = req.body;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-image-1",
+        prompt: prompt,
+        size: "1024x1024",
+      }),
+    });
+
+    const data = await response.json();
+
+    res.status(200).json({ url: data.data[0].url });
+  } catch (error) {
+    res.status(500).json({ error: "Error generando imagen" });
+  }
+}
